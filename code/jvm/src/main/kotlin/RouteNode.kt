@@ -2,25 +2,24 @@ package isel.openapi.mock
 
 class RouteNode(val part: String) {
     val children = mutableMapOf<String, RouteNode>()
-    var handler: ((Map<String, String>) -> String)? = null
+    val info = mutableMapOf<String, ((Map<String, String>) -> String)?>()
     val isParameter = part.startsWith("{")
 }
 
 class Router {
     private val root = RouteNode("")
 
-    fun register(path: String, handler: (Map<String, String>) -> String) {
+    fun register(method: String, path: String, handler: (Map<String, String>) -> String) {
         val parts = path.split("/").filter { it.isNotEmpty() }
         var current = root
 
         for (part in parts) {
-            val newP = part.removePrefix("{").removeSuffix("}")
-            current = current.children.computeIfAbsent(newP) { RouteNode(newP) }
+            current = current.children.computeIfAbsent(part) { RouteNode(part) }
         }
-        current.handler = handler
+        current.info[method] = handler
     }
 
-    fun match(path: String): Pair<((Map<String, String>) -> String)?, Map<String, String>>?{
+    fun match(method: String, path: String): Pair<((Map<String, String>) -> String)?, Map<String, String>>?{
         val parts = path.split("/").filter { it.isNotEmpty() }
         var current = root
         val params = mutableMapOf<String, String>()
@@ -34,12 +33,12 @@ class Router {
                 val wildcardChild = current.children.values.find { it.isParameter }
                 if (wildcardChild != null) {
                     current = wildcardChild
-                    params[wildcardChild.part] = part
+                    params[wildcardChild.part.removePrefix("{").removeSuffix("}")] = part
                 } else {
                     return null
                 }
             }
         }
-        return current.handler to params
+        return current.info[method] to params
     }
 }
